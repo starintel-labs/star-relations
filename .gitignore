@@ -1,0 +1,6 @@
+.prolog/
+*.fasl
+__pycache__/
+*.pyc
+.cache/
+result

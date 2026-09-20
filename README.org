@@ -1,0 +1,184 @@
+#+TITLE: star-relations
+#+SUBTITLE: star-lang relational-rules library for OSINT research
+
+* Purpose
+
+=star-relations= is the bootstrap home for the StarIntel relational-rules
+library: a declarative star-lang =spec-library= ([[file:spec/starintel-relations.star][spec/starintel-relations.star]],
+=org.starintel/relations@1=, version 1.0.0) that types the OSINT relation
+taxonomy used by StarIntel research tooling.
+
+It is the first star-lang =spec= artifact of the StarIntel 0.10.1 program
+(operator instruction 2026-09-19). The predicate identifiers in the
+"live vocabulary" section are in production use in the canonical database;
+their names are frozen and kept =snake_case= as relation identifiers.
+
+* Status
+
+- *Bootstrap.* Not yet imported by any runtime, actor, or compiler pipeline.
+- *Compiler-verified* against the local star-lang checkout (SBCL 2.6.8,
+  =starlang-prototype= loader): the library parses, expands, validates, and
+  lowers through the closed grammar. Run [[file:scripts/verify-local.sh][scripts/verify-local.sh]] to
+  reproduce.
+- Self-contained: zero imports (see the [[Core import swap plan][core import swap plan]]).
+
+* Layout
+
+#+BEGIN_EXAMPLE
+spec/starintel-relations.star   the library (declarations only)
+lock/starintel-relations.lock.json   digest sidecar (no registry exists yet)
+scripts/verify-local.sh         local verification gate
+#+END_EXAMPLE
+
+* Documents: minimal base and thin markers
+
+Because =org.starintel/core@1= is not yet published with a real
+=sha256:<64hex>= digest, star-lang's exact-version-plus-digest import rule
+cannot be satisfied for core. The library is therefore self-contained:
+
+- =(document base ...)= declares a minimal base with one required =id= field.
+- =(document document (:extends base ...))= is the root document kind.
+- Thin marker documents extend =document= with *no extra fields*:
+  =person=, =org=, =host=, =domain=, =file=, =network=, =network-device=,
+  =wireless-network=, =wireless-station=, =pcap-capture=,
+  =network-conversation=, =breach=, =location=, =user=, =source=.
+
+Predicate endpoints are typed against these markers so the eventual swap is
+mechanical. The =network= marker is declared but intentionally unreferenced
+by any predicate in 1.0.0; it is reserved for network-attachment relations.
+
+** Core import swap plan
+
+1. Publish =org.starintel/core@1= with a real =sha256=<64hex>= digest.
+2. Delete =base=, =document=, and every thin marker document from
+   =spec/starintel-relations.star=.
+3. Add =(import "org.starintel/core@1" :version "1.0.0" :digest "sha256:...")=
+   with the published digest and re-point every predicate =:source= /
+   =:destination= at the core kinds (person, org, host, domain, breach, ...).
+4. Re-run =scripts/verify-local.sh= and refresh the lock sidecar digest.
+5. Bump the library version per star-lang additive-release discipline.
+
+* Relation taxonomy
+
+Star-lang predicates carry no inverse metadata, so inverse, symmetry, and
+transitivity live here as documentation. Inverse names follow the expansion
+registry's relation-vocabulary conventions (=subject_role= / =object_role=);
+symmetric relations are marked =self= in the inverse column. Symmetric
+relations are declared once as a single edge (no duplicate reverse
+predicate); runtimes record direction with the =relation-direction= enum
+(=directed= / =symmetric= / =inverse= / =unknown=).
+
+** Live OSINT vocabulary (production names, frozen)
+
+| predicate                                   | source | destination | inverse-of                 | symmetric | transitive | notes                                   |
+|--------------------------------------------+--------+-------------+----------------------------+-----------+------------+-----------------------------------------|
+| affiliated_with                            | person | org         | self                       | yes       | no         | broad affiliation (LittleSis-style)     |
+| member_of                                  | person | org         | has_member                 | no        | no         |                                         |
+| partner                                    | org    | org         | self                       | yes       | no         |                                         |
+| fellow_of                                  | person | org         | has_fellow                 | no        | no         | fellowship/institutional                |
+| board_member_of                            | person | org         | has_board_member           | no        | no         |                                         |
+| employed_by                                | person | org         | employs                    | no        | no         |                                         |
+| subsidiary_of                              | org    | org         | has_subsidiary             | no        | yes        | corporate trees are transitive          |
+| lobbies_for                                | org    | org         | is_lobbied_for_by          | no        | no         | subject lobbies, object benefits        |
+| lobbies_through                            | org    | org         | is_lobbying_vehicle_for    | no        | no         | subject is client, object the firm      |
+| advisor_to                                 | person | org         | has_advisor                | no        | no         |                                         |
+| chair_of                                   | person | org         | has_chair                  | no        | no         |                                         |
+| director_of                                | person | org         | has_director               | no        | no         |                                         |
+| executive_of                               | person | org         | has_executive              | no        | no         |                                         |
+| reports_to                                 | person | person      | has_direct_report          | no        | yes        | reporting chains are transitive         |
+| serves_as                                  | person | person      | -                          | no        | no         | role/position attribution               |
+| contracts_with                             | org    | org         | self                       | yes       | no         |                                         |
+| procures_from                              | org    | org         | supplies_to                | no        | no         | procurement direction matters           |
+| uses_vendor                                | org    | org         | is_vendor_of               | no        | no         |                                         |
+| uses_vendor_technology                     | org    | org         | is_vendor_technology_of    | no        | no         |                                         |
+| participates_in_joint_fundraising_committee | org   | org         | has_jfc_participant        | no        | no         | FEC joint fundraising committees        |
+| owned_and_developed_by                     | org    | org         | owns_and_develops          | no        | no         | technology/product ownership            |
+| possible_same_person_as                    | person | person      | self                       | yes       | no         | pairwise evidence; deliberately NOT transitive |
+| declared_linked_account                    | user   | user        | self                       | yes       | no         | platform-declared linkage               |
+| authored_by                                | source | person      | authored                   | no        | no         |                                         |
+| reply_to                                   | source | source      | has_reply                  | no        | no         | threaded replies                         |
+| viewed_live_camera                         | user   | source      | viewed_by                  | no        | no         | live-camera observation events          |
+
+** Network, capture, and leak relations (new in this library)
+
+| predicate              | source              | destination       | inverse-of                  | symmetric | transitive | notes                              |
+|------------------------+---------------------+-------------------+-----------------------------+-----------+------------+------------------------------------|
+| resolves_to            | domain              | host              | is_resolution_of            | no        | no         | DNS A/AAAA; alias chains flattened |
+| hosted_on              | host                | network-device    | hosts                       | no        | no         | physical/virtual placement         |
+| hosted_by              | host                | org               | hosts                       | no        | no         | host operator                      |
+| communicates_with      | host                | host              | self                        | yes       | no         | observed traffic exchange          |
+| connected_to           | host                | host              | self                        | yes       | no         | L2/L3 adjacency; no cross-capture transitivity |
+| observed_in_capture    | host                | pcap-capture      | captures                    | no        | no         |                                    |
+| conversation_between   | network-conversation | host             | participates_in_conversation | no       | no         | reified conversation; one edge per participating host |
+| manufactured_by        | network-device      | org               | manufactures                | no        | no         |                                    |
+| manages                | org                 | network-device    | managed_by                  | no        | no         |                                    |
+| located_at             | wireless-network    | location          | location_of                 | no        | no         | BSSID geolocation                  |
+| observed_at_station    | wireless-station    | wireless-network  | observed_station            | no        | no         | probe/observation associations     |
+| leak_affects           | breach              | org               | is_affected_by_leak         | no        | no         |                                    |
+| leak_contains          | breach              | file              | contained_in_leak           | no        | no         |                                    |
+| leak_mentions          | breach              | domain            | mentioned_in_leak           | no        | no         |                                    |
+| distributed_by         | breach              | user              | distributes_leak            | no        | no         |                                    |
+| attributed_to          | breach              | org               | is_attributed_source_of     | no        | no         | attribution is inferential; carry confidence |
+
+** Syntax and modeling decisions
+
+- /Two-layer base/: =(document base ...)= plus =(document document
+  (:extends base ...))=. The markers must literally =:extends document=, and
+  =document= must itself resolve inside a self-contained library, so the
+  minimal base sits one layer below the root kind. Both layers vanish in the
+  core-import swap.
+- /Predicate names are identifiers, not fields/: the camelCase rule applies
+  to document fields only. Live relation identifiers stay =snake_case=
+  exactly as they exist in production (underscores are legal star-lang
+  identifier characters).
+- /Symmetric relations are one directed edge=, documented here; star-lang
+  predicates carry no inverse metadata.
+- /conversation_between is reified=: the =network-conversation= document is
+  the subject and each participating host is asserted as one destination
+  edge.
+
+* Digest discipline and lock sidecar
+
+Star-lang imports require exact name@version plus a full
+=sha256:<64hex>= digest of the library octets. Until a spec registry
+exists, [[file:lock/starintel-relations.lock.json][lock/starintel-relations.lock.json]] records the digest as a sidecar
+(=sha256= holds the star-lang digest form, =sha256:= + 64 hex digits, of the
+=spec/starintel-relations.star= octets as produced by =sha256sum=).
+=scripts/verify-local.sh= fails if the sidecar and the file disagree.
+
+* Verification
+
+#+BEGIN_SRC sh
+./scripts/verify-local.sh
+#+END_SRC
+
+The script (network disabled, local paths only):
+
+1. checks the lock sidecar digest against the =.star= octets;
+2. runs structural checks: balanced parens, closed declaration-head set,
+   ASCII lower camelCase field names, =:required=/:optional= markers, and
+   predicate endpoints referencing declared document kinds;
+3. parses and compiles the library through the local star-lang checkout
+   (default =STAR_LANG_ROOT=/home/unseen/starintel/star-lang=, override with
+   the environment variable) using
+   =sbcl --script prototype/run-star.lisp load <spec>=.
+
+Manual compiler fallback if the script reports
+=UNVERIFIED-BY-COMPILER= (no =sbcl= on =PATH=):
+
+#+BEGIN_EXAMPLE
+cd /home/unseen/starintel/star-lang
+sbcl --script prototype/run-star.lisp load \
+  /home/unseen/starintel/star-relations/spec/starintel-relations.star
+#+END_EXAMPLE
+
+Expected output ends with =Loaded org.starintel/relations@1 version 1.0.0.=
+and the library digest.
+
+* License
+
+No LICENSE file decision: sibling StarIntel repos differ --- star-lang
+ships an SPDX-style =LICENSE= (AGPL-3.0-only) while starintel-pro-actors
+declares GPL-3.0-or-later in its README only. Following the language
+authority (star-lang), this repo ships the same short SPDX-style =LICENSE=
+under AGPL-3.0-only; revisit if org policy centralizes licensing.
