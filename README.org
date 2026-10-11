@@ -148,6 +148,23 @@ exists, [[file:lock/starintel-relations.lock.json][lock/starintel-relations.lock
 
 * Verification
 
+The reproducible producer supports =x86_64-linux=. Its committed lock pins
+StarLang's owning compiler package; no personal checkout is required:
+
+#+BEGIN_SRC sh
+nix build --no-update-lock-file
+nix run .#verify
+nix flake check --no-update-lock-file -L
+#+END_SRC
+
+=packages.default= (also =star-relations=) contains the unchanged spec, digest
+sidecar, provenance documentation and license under =share/star-relations=.
+The =verify= package/app (also the default app) checks these installed artifacts
+outside the source checkout, using the canonical compiler. It is verification
+glue, not an actor runtime. Consumers pin this producer revision and use the
+artifact output. Hosted exact-head checks establish platform build evidence.
+The core-import migration still requires the explicit version/digest gate above.
+
 #+BEGIN_SRC sh
 ./scripts/verify-local.sh
 #+END_SRC
@@ -159,17 +176,16 @@ The script (network disabled, local paths only):
    ASCII lower camelCase field names, =:required=/:optional= markers, and
    predicate endpoints referencing declared document kinds;
 3. parses and compiles the library through the local star-lang checkout
-   (default =STAR_LANG_ROOT=/home/unseen/starintel/star-lang=, override with
-   the environment variable) using
+   (set =STAR_LANG_ROOT= explicitly, or =STAR_LANG= to the installed compiler) using
    =sbcl --script prototype/run-star.lisp load <spec>=.
 
 Manual compiler fallback if the script reports
 =UNVERIFIED-BY-COMPILER= (no =sbcl= on =PATH=):
 
 #+BEGIN_EXAMPLE
-cd /home/unseen/starintel/star-lang
+cd "$STAR_LANG_ROOT"
 sbcl --script prototype/run-star.lisp load \
-  /home/unseen/starintel/star-relations/spec/starintel-relations.star
+  /absolute/path/to/star-relations/spec/starintel-relations.star
 #+END_EXAMPLE
 
 Expected output ends with =Loaded org.starintel/relations@1 version 1.0.0.=

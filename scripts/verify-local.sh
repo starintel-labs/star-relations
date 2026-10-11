@@ -11,10 +11,10 @@
 # 3 compiler unavailable (library then UNVERIFIED-BY-COMPILER).
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="${STAR_RELATIONS_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 SPEC="$REPO_ROOT/spec/starintel-relations.star"
 LOCK="$REPO_ROOT/lock/starintel-relations.lock.json"
-STAR_LANG_ROOT="${STAR_LANG_ROOT:-/home/unseen/starintel/star-lang}"
+STAR_LANG_ROOT="${STAR_LANG_ROOT:-}"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -151,6 +151,18 @@ print(f"stage 1: structural ok ({n_docs} documents, {n_pred} predicates, parens 
 PYEOF
 
 # ---------------------------------------------------------------- Stage 2
+if [ -n "${STAR_LANG:-}" ]; then
+  # Use the canonical producer executable; cache output stays outside its store.
+  compiler_cache=$(mktemp -d)
+  trap 'rm -rf -- "$compiler_cache"' EXIT
+  if "$STAR_LANG" load "$SPEC" --cache "$compiler_cache"; then
+    echo "stage 2: compiler verified org.starintel/relations@1"
+    echo "verify-local: PASS"
+    exit 0
+  fi
+  echo "verify-local: FAIL (compiler rejected the library)" >&2
+  exit 2
+fi
 if ! command -v sbcl >/dev/null 2>&1; then
   echo "stage 2: SKIPPED (sbcl not found)" >&2
   echo "UNVERIFIED-BY-COMPILER: install sbcl or run in the star-lang nix shell." >&2
